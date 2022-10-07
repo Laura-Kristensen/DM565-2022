@@ -1,0 +1,209 @@
+#+STARTUP: showall
+#+STARTUP: hideblocks
+#+PROPERTY: header-args:zsh :results output :session ex
+* Tree-Like Data Formats. Computation-Oriented Command-Line Tools.
+
+#+begin_src zsh :cache yes :results none
+  curl https://imada.sdu.dk/~kslarsen/dm565/Files/participants.txt --output participants.txt --silent
+#+end_src
+
+#+begin_src zsh :results none
+  export LC_CTYPE="UTF-8"
+#+end_src
+
+** 1
+Use the command-line tool ~sort~ to sort on the first names. Which effect does
+~sort -k 2~ have? Now sort on the email addresses.
+
+#+begin_src zsh
+  cat participants.txt
+#+end_src
+
+#+begin_src zsh
+  sort -k1 participants.txt
+#+end_src
+
+
+#+begin_src zsh
+  sort -k2 participants.txt
+#+end_src
+
+#+begin_src zsh
+  sort -t: -k2 participants.txt
+#+end_src
+
+** 2
+Use ~tr~ twice to delete ":" and change "@" to "$".
+
+#+begin_src zsh
+  cat participants.txt | tr -d ':' | tr "@" "$"
+#+end_src
+
+** 3
+Use ~cut~ several times to remove anything other than the user name, i.e.,
+first remove @student.sdu.dk, and then continue.
+
+I used the ~tee~ command just for convenience.
+
+From the man page for ~tee~:
+
+The ~tee~ utility copies standard input to standard output, making a copy in
+zero or more files.
+
+#+begin_src zsh :cache yes
+  cat participants.txt | cut -d@ -f1 | cut -d: -f2 | cut -d' ' -f2 | tee user.txt
+#+end_src
+
+** 4
+Make a file with as many copies of the line @student.sdu.dk as there are
+lines in the original file. You can of course find out how many lines are
+needed using wc. ツ One way to create that file is to use seq n, where n is
+the number of lines you need, followed by an appropriate sed substitution
+using a regular expression. Now paste this file together with the file of
+user names from above to create full email addresses again.
+
+I used ~xargs~ just for convenience (see ~man xargs~).
+
+#+begin_src zsh :cache yes
+  cat participants.txt | wc -l | xargs seq | sed -E 's/^[[:digit:]]+/@student.sdu.dk/' | tee domain.txt
+#+end_src
+
+#+begin_src zsh
+  paste -d'\0' user.txt domain.txt | tee mail.txt
+#+end_src
+
+** 5
+Use gawk to put a line number and a colon in front of the full emails from
+above. Remove the space following the colon in the original file, and then
+join these two results on the email address field.
+
+#+begin_src zsh
+  cat mail.txt | awk 'BEGIN {OFS=""} { print NR, ":", $0 }' | tee numbered-email.txt
+#+end_src
+
+#+begin_src zsh
+  cat participants.txt | sed 's/: /:/' | join -t: -12 -22 -o1.1,2.1,0 numbered-email.txt -
+#+end_src
+
+** 6
+Consider the UTF-8 encoded files from last time. Using command-line tools, place
+a filter before ~wc~ so that characters (allowing the Danish ones) are counted,
+as opposed to counting bytes, as ~wc~ does.
+
+#+begin_src zsh
+  cat ../e04/File_Ex_UTF8.txt | sed -E 's/./a/g' | wc
+#+end_src
+
+** 7
+Consider the different end-of-line formats from last time. Write ~sed~ code
+that translates from MS-DOS to Unix style and the other way around.
+
+*** MS-DOS to Unix:
+
+Linux solution:
+#+begin_src zsh
+  cat ../e04/File_Ex_MS-DOS_Eol.txt | sed -E 's/\r$//g' | od -tcuC
+#+end_src
+
+MacOS solution:
+#+begin_src zsh
+  cat ../e04/File_Ex_MS-DOS_Eol.txt | sed "s/$(printf '\r')\$//" | od -tcuC
+#+end_src
+
+*** Unix to MS-DOS:
+
+Linux solution:
+#+begin_src zsh
+  cat ../e04/File_Ex_Unix_EOL.txt | sed -E 's/$/\r/g' | od -tcuC
+#+end_src
+
+MacOS solution:
+#+begin_src zsh
+  cat ../e04/File_Ex_Unix_Eol.txt | sed -E "s/$/$(printf '\r')/" | od -tcuC
+#+end_src
+
+** 8
+Mask credit card numbers so that 1234 5678 9012 3456
+becomes **** **** **** 3456.
+
+#+begin_src zsh
+  echo "1234 5678 9012 3456" | awk '
+       /^[0-9]{4}( [0-9]{4}){3}$/{
+           $1="****"; $2="****"; $3="****"; print
+       }'
+#+end_src
+
+#+begin_src zsh
+  echo "1234 5678 9012 3456" | sed -E 's/[0-9]{4} /**** /g'
+#+end_src
+
+** 9
+With input
+
+#+begin_example
+Name,Team,First Test,Second Test,Third Test
+Tom,Red,5,17,22
+Joe,Green,3,14,22
+Maria,Blue,6,18,21
+Fred,Blue,2,15,23
+Carlos,Red,-1,15,24
+Phuong,Green,7,19,21
+Enrique,Green,3,16,20
+Nancy,Red,9,12,24
+#+end_example
+
+use ~gawk~ to create individual, test, and team averages (-1 represents a
+non-existing result and should simply be ignored) as
+
+#+begin_example
+Name         Average
+----         -------
+Tom            14.67
+Joe            13.00
+Maria          15.00
+Fred           13.33
+Carlos         19.50
+Phuong         15.67
+Enrique        13.00
+Nancy          15.00
+----------------------
+Average, Test 1:  5.00
+Average, Test 2: 15.75
+Average, Test 3: 22.12
+----------------------
+Average, Red: 16.00
+Average, Blue: 14.17
+Average, Green: 13.89
+#+end_example
+
+Write the program on a script file and run using the ~-f~ option to ~gawk~. Do
+not try to write the entire program from the beginning. Start by printing the
+names, then try to compute the average of each individual and print that, and so
+on. This is proptotyping! The formatting is the least important.
+
+#+begin_src zsh
+  awk -f program.awk test.csv
+#+end_src
+
+
+** 10
+What happens if the field separator is the empty string? Write an ~gawk~ script
+that counts occurrences of the normal (English) letters and digits and writes
+each letter and digit and the number of times it occurred. Now to use this for
+programs, only count in lines that are not comment lines (you can decide what a
+comment line starts with). Thus, you have to use a pattern.
+
+** 11
+Use ~tr~, ~sort~, and ~uniq~ to take an input (text) file and produce a list of
+words and their frequencies in the text sorted in order of highest frequencies
+first.
+
+#+NAME: turing
+#+begin_src zsh :cache yes
+  curl https://sed.sourceforge.net/grabbag/scripts/turing.txt --output turing.txt --silent
+#+end_src
+
+#+begin_src zsh
+  cat turing.txt | tr -cs '[:alpha:]' '\n' | sort | uniq -c | sort -gr -t' ' -k1
+#+end_src
+
