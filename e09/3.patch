@@ -1,0 +1,43 @@
+diff --git a/Compiler/lexer_parser.py b/Compiler/lexer_parser.py
+index 158bd71..51b37d2 100644
+--- a/Compiler/lexer_parser.py
++++ b/Compiler/lexer_parser.py
+@@ -108,6 +108,7 @@ precedence = (
+     ('right', 'EQ', 'NEQ', 'LT', 'GT', 'LTE', 'GTE'),
+     ('left', 'PLUS', 'MINUS'),
+     ('left', 'TIMES', 'DIVIDE'),
++    ('right', 'UMINUS')
+ )
+ 
+ 
+@@ -236,7 +237,8 @@ def p_statement_list(t):
+ 
+ 
+ def p_expression(t):
+-    '''expression : expression_integer
++    '''expression : expression_unary
++                  | expression_integer
+                   | expression_identifier
+                   | expression_call
+                   | expression_binop
+@@ -272,6 +274,10 @@ def p_expression_binop(t):
+                         | expression GTE expression'''
+     t[0] = AST.expression_binop(t[2], t[1], t[3], t.lexer.lineno)
+ 
++def p_expression_unary(t):
++    'expression_unary : MINUS expression %prec UMINUS'
++    zero = AST.expression_integer(0, t.lexer.lineno)
++    t[0] = AST.expression_binop(t[1], zero, t[2], t.lexer.lineno)
+ 
+ def p_expression_group(t):
+     'expression_group : LPAREN expression RPAREN'
+diff --git a/Test/arithmetic.src b/Test/arithmetic.src
+index 3b9a201..57a6a49 100644
+--- a/Test/arithmetic.src
++++ b/Test/arithmetic.src
+@@ -2,4 +2,5 @@ print 41+1;
+ print 43-1;
+ print 6*7;
+ print 84/2;
++print -1;
+ return 0;
