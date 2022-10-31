@@ -21,16 +21,17 @@ int yylex();
 %token tASSIGN ":="
 %token '+'
 
-/*
+
 %precedence WHILEPREC
 %precedence ":="
 %left '+'
-*/
+
 
 %start S
 
 
 %%
+
 S: E { };
 
 E
@@ -39,4 +40,5 @@ E
 | E '+' E {}
 | tID {}
 ;
+
 %%
