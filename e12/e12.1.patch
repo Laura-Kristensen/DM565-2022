@@ -1,0 +1,122 @@
+diff --git a/Compiler/AST.py b/Compiler/AST.py
+index 235821f..1905485 100644
+--- a/Compiler/AST.py
++++ b/Compiler/AST.py
+@@ -160,6 +160,18 @@ class statement_while:
+         self.while_part.accept(visitor)
+         visitor.postVisit(self)
+ 
++class statement_repeat:
++    def __init__(self, exp, repeat_part, lineno):
++        self.exp = exp
++        self.repeat_part = repeat_part
++        self.lineno = lineno
++
++    def accept(self, visitor):
++        visitor.preVisit(self)
++        self.repeat_part.accept(visitor)
++        visitor.midVisit(self)
++        self.exp.accept(visitor)
++        visitor.postVisit(self)
+ 
+ class statement_list:
+     def __init__(self, stm, next_, lineno):
+diff --git a/Compiler/code_generation.py b/Compiler/code_generation.py
+index a9d5132..5132959 100644
+--- a/Compiler/code_generation.py
++++ b/Compiler/code_generation.py
+@@ -302,6 +302,34 @@ class ASTCodeGenerationVisitor(VisitorsBase):
+         self._app(Ins(Op.LABEL,
+                       Arg(Target(T.MEM, t.endwhile_label), Mode(M.DIR))))
+ 
++    def preVisit_statement_repeat(self, t):
++        """while_label:
++        """
++        t.repeat_label = self._labels.next("repeat")
++        self._app(Ins(Op.LABEL,
++                      Arg(Target(T.MEM, t.repeat_label), Mode(M.DIR))))
++
++    def postVisit_statement_repeat(self, t):
++        """                pop reg1
++                           move true, reg2
++                           cmp reg1, reg2
++                           jne repeat_label
++        """
++        self._app(Ins(Op.POP,
++                      Arg(Target(T.REG, 1), Mode(M.DIR)),
++                      c="move computed boolean to register"))
++        self._app(Ins(Op.MOVE,
++                      Arg(Target(T.IMI, 1), Mode(M.DIR)),
++                      Arg(Target(T.REG, 2), Mode(M.DIR)),
++                      c="move true to register"))
++        self._app(Ins(Op.CMP,
++                      Arg(Target(T.REG, 1), Mode(M.DIR)),
++                      Arg(Target(T.REG, 2), Mode(M.DIR)),
++                      c="compare computed boolean to true"))
++        self._app(Ins(Op.JNE,
++                      Arg(Target(T.MEM, t.repeat_label), Mode(M.DIR)),
++                      c="jump to repeat if not true"))
++
+     def postVisit_expression_integer(self, t):
+         """                push int
+         """
+diff --git a/Compiler/lexer_parser.py b/Compiler/lexer_parser.py
+index 158bd71..9a140f4 100644
+--- a/Compiler/lexer_parser.py
++++ b/Compiler/lexer_parser.py
+@@ -24,6 +24,8 @@ reserved = {
+     'else': 'ELSE',
+     'while': 'WHILE',
+     'do': 'DO',
++    'repeat': 'REPEAT',
++    'until': 'UNTIL',
+     'function': 'FUNCTION',
+     'return': 'RETURN',
+     'var': 'VAR',
+@@ -192,6 +194,7 @@ def p_statement(t):
+                  | statement_assignment
+                  | statement_ifthenelse
+                  | statement_while
++                 | statement_repeat
+                  | statement_compound'''
+     t[0] = t[1]
+ 
+@@ -220,6 +223,9 @@ def p_statement_while(t):
+     'statement_while :  WHILE expression DO statement'
+     t[0] = AST.statement_while(t[2], t[4], t.lexer.lineno)
+ 
++def p_statement_repeat(t):
++    'statement_repeat :  REPEAT statement UNTIL expression SEMICOL'
++    t[0] = AST.statement_repeat(t[4], t[2], t.lexer.lineno)
+ 
+ def p_statement_compound(t):
+     'statement_compound :  LCURL statement_list RCURL'
+diff --git a/Test/summers.src b/Test/summers.src
+index bd8a754..39c7bf6 100644
+--- a/Test/summers.src
++++ b/Test/summers.src
+@@ -19,10 +19,24 @@ function sum_loop(n) {
+   return sum;
+ }
+ 
++function sum_repeat(n) {
++  var sum, i
++  
++  i = 1;
++  sum = 0;
++  repeat {
++    sum = sum + i;
++    i = i + 1;
++  } until i > n;
++  return sum;
++}
++
+ print sum_recurse(9);
+ print sum_loop(9);
++print sum_repeat(9);
+ 
+ print sum_recurse(42);
+ print sum_loop(42);
++print sum_repeat(42);
+ 
+ return 0;

@@ -1,0 +1,79 @@
+diff --git a/Compiler/AST.py b/Compiler/AST.py
+index 235821f..bb64423 100644
+--- a/Compiler/AST.py
++++ b/Compiler/AST.py
+@@ -106,6 +106,15 @@ class statement_return:
+         self.exp.accept(visitor)
+         visitor.postVisit(self)
+ 
++class statement_expression:
++    def __init__(self, exp, lineno):
++        self.exp = exp
++        self.lineno = lineno
++
++    def accept(self, visitor):
++        visitor.preVisit(self)
++        self.exp.accept(visitor)
++        visitor.postVisit(self)
+ 
+ class statement_print:
+     def __init__(self, exp, lineno):
+diff --git a/Compiler/code_generation.py b/Compiler/code_generation.py
+index a9d5132..6bca521 100644
+--- a/Compiler/code_generation.py
++++ b/Compiler/code_generation.py
+@@ -205,6 +205,14 @@ class ASTCodeGenerationVisitor(VisitorsBase):
+         label = self._function_stack[-1].end_label
+         self._app(Ins(Op.RET, label))
+ 
++    def postVisit_statement_expression(self, t):
++        """                add $8, rsp
++        """
++        self._app(Ins(Op.ADD,
++                      Arg(Target(T.IMI, 8), Mode(M.DIR)),
++                      Arg(Target(T.RSP), Mode(M.DIR)),
++                      c="discard expression result"))
++
+     def postVisit_statement_print(self, t):
+         self._app(Ins(Op.META, Meta.CALLER_SAVE))
+         self._app(Ins(Op.META, Meta.CALLER_PROLOGUE))
+diff --git a/Compiler/lexer_parser.py b/Compiler/lexer_parser.py
+index 158bd71..dbf015a 100644
+--- a/Compiler/lexer_parser.py
++++ b/Compiler/lexer_parser.py
+@@ -192,6 +192,7 @@ def p_statement(t):
+                  | statement_assignment
+                  | statement_ifthenelse
+                  | statement_while
++                 | statement_expression
+                  | statement_compound'''
+     t[0] = t[1]
+ 
+@@ -220,6 +221,9 @@ def p_statement_while(t):
+     'statement_while :  WHILE expression DO statement'
+     t[0] = AST.statement_while(t[2], t[4], t.lexer.lineno)
+ 
++def p_statement_expression(t):
++    'statement_expression : expression SEMICOL'
++    t[0] = AST.statement_expression(t[1], t.lexer.lineno)
+ 
+ def p_statement_compound(t):
+     'statement_compound :  LCURL statement_list RCURL'
+diff --git a/Test/factorial.src b/Test/factorial.src
+index 9496bd2..17ba45b 100644
+--- a/Test/factorial.src
++++ b/Test/factorial.src
+@@ -2,6 +2,7 @@
+ # The classic factorial function.
+ 
+ function factorial(n){
++  print n;
+   if n == 0 then
+     return 1;
+   else
+@@ -9,4 +10,5 @@ function factorial(n){
+ }
+ 
+ print factorial(5);
++factorial(5);
+ return 0;
